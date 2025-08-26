@@ -12,26 +12,38 @@ final class StatusItemController {
     // MARK: - Initialization
     
     init(petWindowController: PetWindowController, dockObserver: DockObserver) {
+        print("🔄 StatusItemController initializing...")
         self.petWindowController = petWindowController
         self.dockObserver = dockObserver
         
         // Only initialize StartAtLoginHelper on macOS 13+
         if #available(macOS 13.0, *) {
             self.startAtLoginHelper = StartAtLoginHelper()
+            print("✅ StartAtLoginHelper initialized")
         } else {
             self.startAtLoginHelper = nil
+            print("⚠️  StartAtLoginHelper not available (macOS < 13)")
         }
         
+        print("🔄 Creating NSStatusBar item...")
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        setupStatusItem()
-        setupMenu()
+        
+        if statusItem.button != nil {
+            print("✅ Status bar item created successfully")
+            setupStatusItem()
+            setupMenu()
+        } else {
+            print("❌ Failed to create status bar item!")
+        }
     }
     
     // MARK: - Private Methods
     
     private func setupStatusItem() {
+        print("🔄 Setting up status item appearance...")
         statusItem.button?.title = "λ"
         statusItem.button?.font = NSFont.systemFont(ofSize: 16, weight: .medium)
+        print("✅ Status item appearance configured")
     }
     
     private func setupMenu() {

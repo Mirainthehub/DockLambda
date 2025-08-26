@@ -14,9 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Application Lifecycle
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        print("🚀 DockLambda starting up...")
         setupApplication()
         initializeComponents()
         startMonitoring()
+        print("✅ DockLambda startup complete")
     }
     
     func applicationWillTerminate(_ notification: Notification) {
@@ -44,26 +46,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func initializeComponents() {
+        print("🔧 Initializing components...")
+        
         // Initialize CPU monitor
         cpuMonitor = CPUUsageMonitor()
+        print("✅ CPU monitor initialized")
         
         // Initialize dock observer
         dockObserver = DockObserver()
+        print("✅ Dock observer initialized")
         
         // Initialize pet window controller
         petWindowController = PetWindowController()
         petWindowController.loadWindow()
         petWindowController.showWindow(nil)
+        print("✅ Pet window controller initialized")
         
         // Initialize status bar item
+        print("🔄 Creating status bar item...")
         statusItemController = StatusItemController(
             petWindowController: petWindowController,
             dockObserver: dockObserver
         )
+        print("✅ Status bar item initialized")
         
         // Connect CPU monitor to pet scene
         if let petScene = petWindowController.petScene {
             cpuMonitor.delegate = petScene
+            print("✅ CPU monitor connected to pet scene")
+        } else {
+            print("⚠️  Warning: Pet scene not found")
         }
     }
     
