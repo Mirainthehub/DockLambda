@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+
+# Build products
+build/
+DerivedData/
+
+# Logs
+*.log
+
+# Node.js (if using)
+node_modules/
+npm-debug.log*
+
+# Python (if using)
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Other
+*.tmp
+*.temp
+.cache/
