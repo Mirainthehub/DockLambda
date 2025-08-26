@@ -1,4 +1,5 @@
 import Cocoa
+import SpriteKit
 
 final class PetWindow: NSWindow {
     
@@ -21,7 +22,7 @@ final class PetWindow: NSWindow {
         
         // Setup tracking area for mouse events
         let trackingArea = NSTrackingArea(
-            rect: bounds,
+            rect: frame,
             options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited],
             owner: self,
             userInfo: nil
@@ -32,6 +33,15 @@ final class PetWindow: NSWindow {
     // MARK: - Mouse Events
     
     override func mouseDown(with event: NSEvent) {
+        // Handle double-click first
+        if event.clickCount == 2 {
+            // Double click - trigger dance action
+            if let petScene = (contentView as? SKView)?.scene as? PetScene {
+                petScene.triggerDance()
+            }
+            return
+        }
+        
         super.mouseDown(with: event)
         
         // Check if Option key is pressed for dragging
@@ -64,29 +74,6 @@ final class PetWindow: NSWindow {
     override func rightMouseDown(with event: NSEvent) {
         super.rightMouseDown(with: event)
         // Could show context menu here if needed
-    }
-    
-    // Handle double-click
-    override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 {
-            // Double click - trigger dance action
-            if let petScene = (contentView as? SKView)?.scene as? PetScene {
-                petScene.triggerDance()
-            }
-            return
-        }
-        
-        super.mouseDown(with: event)
-        
-        // Check if Option key is pressed for dragging
-        if event.modifierFlags.contains(.option) {
-            startDragging(with: event)
-        } else {
-            // Single click - trigger feed action
-            if let petScene = (contentView as? SKView)?.scene as? PetScene {
-                petScene.triggerFeed()
-            }
-        }
     }
     
     // MARK: - Dragging

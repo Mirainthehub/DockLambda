@@ -1,5 +1,6 @@
 import ServiceManagement
 import Foundation
+import Cocoa
 
 @available(macOS 13.0, *)
 final class StartAtLoginHelper {
@@ -53,20 +54,20 @@ final class StartAtLoginHelper {
     }
     
     private func getErrorMessage(_ error: Error) -> String {
-        if let smError = error as? SMAppService.Error {
-            switch smError {
-            case .bundleNotFound:
-                return "Application bundle not found. This usually happens in development."
-            case .duplicateJob:
-                return "Login item already exists."
-            case .jobNotFound:
-                return "Login item not found."
-            case .notAuthorized:
-                return "Not authorized to modify login items. Please try again."
-            @unknown default:
-                return "Unknown error: \(smError.localizedDescription)"
-            }
+        // Handle SMAppService errors without using the .Error type
+        // which might not be available in all SDK versions
+        let errorDescription = error.localizedDescription
+        
+        if errorDescription.contains("bundle") {
+            return "Application bundle not found. This usually happens in development."
+        } else if errorDescription.contains("duplicate") {
+            return "Login item already exists."
+        } else if errorDescription.contains("not found") {
+            return "Login item not found."
+        } else if errorDescription.contains("authorized") || errorDescription.contains("permission") {
+            return "Not authorized to modify login items. Please try again."
         }
+        
         return error.localizedDescription
     }
     
