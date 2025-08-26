@@ -1,0 +1,101 @@
+name: Simple Build Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+    
+    - name: 创建最小测试项目
+      run: |
+        # 创建一个最小的 Swift 文件来测试基本编译
+        mkdir TestApp
+        cd TestApp
+        
+        # 创建基本的 main.swift
+        cat > main.swift << 'EOF'
+        import Cocoa
+        import SpriteKit
+        import ServiceManagement
+        
+        @main
+        struct TestApp {
+            static func main() {
+                print("Hello, macOS!")
+            }
+        }
+        EOF
+        
+        # 尝试编译
+        echo "🧪 测试基本编译..."
+        swift main.swift -o test_app -target x86_64-apple-macos13.0
+        
+        echo "✅ 基本编译成功"
+    
+    - name: 测试 SMAppService 可用性
+      run: |
+        cat > test_smappservice.swift << 'EOF'
+        import Foundation
+        import ServiceManagement
+        
+        @available(macOS 13.0, *)
+        class TestSMAppService {
+            func test() {
+                let service = SMAppService.mainApp
+                print("SMAppService status: \(service.status)")
+            }
+        }
+        
+        if #available(macOS 13.0, *) {
+            let test = TestSMAppService()
+            test.test()
+            print("✅ SMAppService test passed")
+        } else {
+            print("⚠️ macOS version too old for SMAppService")
+        }
+        EOF
+        
+        swift test_smappservice.swift -target x86_64-apple-macos13.0
+    
+    - name: 逐个测试 DockLambda 文件
+      run: |
+        echo "🔍 测试各个 Swift 文件..."
+        
+        # 测试不依赖其他文件的 Swift 文件
+        test_files=(
+          "DockLambda/PetStateMachine.swift"
+          "DockLambda/DockObserver.swift"
+          "DockLambda/StartAtLoginHelper.swift"
+        )
+        
+        for file in "${test_files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "🧪 测试: $file"
+            # 基本语法检查
+            swift -frontend -parse "$file" -sdk $(xcrun --show-sdk-path --sdk macosx) -target x86_64-apple-macos13.0 || {
+              echo "❌ 语法错误在: $file"
+              exit 1
+            }
+            echo "✅ $file 语法正确"
+          fi
+        done
+    
+    - name: 检查 Xcode 项目配置
+      run: |
+        echo "🔍 检查 Xcode 项目设置..."
+        
+        # 提取关键设置
+        grep -A 5 -B 5 "SWIFT_VERSION\|MACOSX_DEPLOYMENT_TARGET\|PRODUCT_BUNDLE_IDENTIFIER" DockLambda.xcodeproj/project.pbxproj || true
+        
+        echo "📋 显示完整的构建设置..."
+        xcodebuild -project DockLambda.xcodeproj -target DockLambda -showBuildSettings | head -50

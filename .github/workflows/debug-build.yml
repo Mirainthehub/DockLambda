@@ -1,0 +1,89 @@
+name: Debug Build Issues
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: macos-latest
+    
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 🍎 设置 Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+    
+    - name: 🔍 显示环境信息
+      run: |
+        echo "🖥️  macOS 版本: $(sw_vers -productVersion)"
+        echo "🔨 Xcode 版本: $(xcodebuild -version)"
+        echo "💻 架构: $(uname -m)"
+        swift --version
+    
+    - name: 📋 检查项目配置
+      run: |
+        echo "🔍 检查项目文件..."
+        ls -la DockLambda.xcodeproj/
+        
+        echo "🎯 检查 Scheme..."
+        xcodebuild -list -project DockLambda.xcodeproj
+        
+        echo "🗂️ 检查源文件..."
+        ls -la DockLambda/
+    
+    - name: 🧪 语法检查 - 单个文件编译
+      run: |
+        echo "🔍 逐个检查 Swift 文件语法..."
+        
+        cd DockLambda
+        
+        # 检查每个 Swift 文件的语法
+        for file in *.swift; do
+          echo "检查: $file"
+          if ! swift -frontend -parse -primary-file "$file" -sdk $(xcrun --show-sdk-path --sdk macosx) >/dev/null 2>&1; then
+            echo "❌ 语法错误在文件: $file"
+            swift -frontend -parse -primary-file "$file" -sdk $(xcrun --show-sdk-path --sdk macosx)
+            exit 1
+          else
+            echo "✅ $file 语法正确"
+          fi
+        done
+    
+    - name: 🔨 详细构建测试
+      run: |
+        echo "🚀 详细构建信息..."
+        
+        xcodebuild \
+          -scheme DockLambda \
+          -configuration Debug \
+          -destination "generic/platform=macOS" \
+          build \
+          -verbose \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          DEVELOPMENT_TEAM="" \
+          PRODUCT_BUNDLE_IDENTIFIER="com.example.DockLambda" \
+        || true
+        
+        echo "📋 查看构建日志..."
+    
+    - name: 🔍 检查依赖和导入
+      run: |
+        echo "🔍 检查 Swift 导入..."
+        
+        # 检查是否能正确导入系统框架
+        cat > test_imports.swift << 'EOF'
+        import Cocoa
+        import ServiceManagement
+        import SpriteKit
+        
+        print("导入测试通过")
+        EOF
+        
+        swift test_imports.swift
+        
+        echo "✅ 系统框架导入正常"
