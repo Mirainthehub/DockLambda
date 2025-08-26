@@ -26,7 +26,7 @@ console | grep -i docklambda
 **快速解决**:
 ```bash
 # 重置窗口位置
-defaults delete com.docklambda.app relativeOffset
+defaults delete com.example.DockLambda relativeOffset
 # 或通过菜单栏: λ → Reset Position
 ```
 
@@ -100,7 +100,7 @@ window.hasShadow = false
 
 #### 问题：穿透模式不工作
 **诊断步骤**:
-1. 检查 UserDefaults: `defaults read com.docklambda.app clickThrough`
+1. 检查 UserDefaults: `defaults read com.example.DockLambda clickThrough`
 2. 确认窗口属性: `window.ignoresMouseEvents`
 3. 菜单状态同步: `StatusItemController.updateMenuItems()`
 
@@ -302,7 +302,7 @@ sw_vers
 uname -a
 
 # 应用版本
-defaults read com.docklambda.app CFBundleVersion 2>/dev/null || echo "未安装"
+defaults read com.example.DockLambda CFBundleVersion 2>/dev/null || echo "未安装"
 
 # 相关日志
 log show --last 1h --predicate 'process == "DockLambda"' --style compact
@@ -312,12 +312,12 @@ log show --last 1h --predicate 'process == "DockLambda"' --style compact
 如果应用出现严重问题:
 ```bash
 # 完全重置应用状态
-defaults delete com.docklambda.app
-rm -rf ~/Library/Caches/com.docklambda.app
+defaults delete com.example.DockLambda
+rm -rf ~/Library/Caches/com.example.DockLambda
 killall DockLambda
 
 # 卸载登录项
-launchctl unload ~/Library/LaunchAgents/com.docklambda.app.plist 2>/dev/null
+launchctl unload ~/Library/LaunchAgents/com.example.DockLambda.plist 2>/dev/null
 ```
 
 ---
