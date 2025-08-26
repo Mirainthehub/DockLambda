@@ -7,14 +7,20 @@ final class StatusItemController {
     private let statusItem: NSStatusItem
     private let petWindowController: PetWindowController
     private let dockObserver: DockObserver
-    private let startAtLoginHelper: StartAtLoginHelper
+    private let startAtLoginHelper: StartAtLoginHelper?
     
     // MARK: - Initialization
     
     init(petWindowController: PetWindowController, dockObserver: DockObserver) {
         self.petWindowController = petWindowController
         self.dockObserver = dockObserver
-        self.startAtLoginHelper = StartAtLoginHelper()
+        
+        // Only initialize StartAtLoginHelper on macOS 13+
+        if #available(macOS 13.0, *) {
+            self.startAtLoginHelper = StartAtLoginHelper()
+        } else {
+            self.startAtLoginHelper = nil
+        }
         
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         setupStatusItem()
@@ -116,7 +122,14 @@ final class StatusItemController {
         
         // Update start at login state
         if let startAtLoginItem = menu.item(withTitle: "Start at Login") {
-            startAtLoginItem.state = startAtLoginHelper.isEnabled ? .on : .off
+            if let helper = startAtLoginHelper {
+                startAtLoginItem.state = helper.isEnabled ? .on : .off
+                startAtLoginItem.isEnabled = true
+            } else {
+                startAtLoginItem.state = .off
+                startAtLoginItem.isEnabled = false
+                startAtLoginItem.title = "Start at Login (macOS 13+ only)"
+            }
         }
         
         // Update show/hide state
@@ -149,10 +162,21 @@ final class StatusItemController {
     }
     
     @objc private func toggleStartAtLogin() {
-        if startAtLoginHelper.isEnabled {
-            startAtLoginHelper.disable()
+        guard let helper = startAtLoginHelper else {
+            // Show alert for unsupported macOS version
+            let alert = NSAlert()
+            alert.messageText = "Unsupported macOS Version"
+            alert.informativeText = "Start at Login feature requires macOS 13.0 or later."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+        
+        if helper.isEnabled {
+            helper.disable()
         } else {
-            startAtLoginHelper.enable()
+            helper.enable()
         }
         updateMenuItems()
     }

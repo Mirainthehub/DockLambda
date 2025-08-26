@@ -1,6 +1,7 @@
 import ServiceManagement
 import Foundation
 
+@available(macOS 13.0, *)
 final class StartAtLoginHelper {
     
     // MARK: - Properties
