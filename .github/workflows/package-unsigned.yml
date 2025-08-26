@@ -74,12 +74,35 @@ jobs:
       run: |
         echo "🚀 开始构建 Archive..."
         
+        # 先尝试基本构建测试
+        echo "🧪 测试基础构建..."
+        if ! xcodebuild \
+          -scheme "$SCHEME" \
+          -configuration "$CONFIGURATION" \
+          -destination "generic/platform=macOS" \
+          build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          DEVELOPMENT_TEAM="" \
+          PRODUCT_BUNDLE_IDENTIFIER="com.example.DockLambda"; then
+          
+          echo "❌ 基础构建失败，查看详细错误信息..."
+          exit 1
+        fi
+        
+        echo "✅ 基础构建成功，开始 Archive..."
+        
         xcodebuild archive \
           -scheme "$SCHEME" \
           -configuration "$CONFIGURATION" \
           -destination "generic/platform=macOS" \
           -archivePath "build/DockLambda.xcarchive" \
           -allowProvisioningUpdates \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          DEVELOPMENT_TEAM="" \
           BUILD_DIR="$(pwd)/build" \
           PRODUCT_BUNDLE_IDENTIFIER="com.example.DockLambda"
         
@@ -93,52 +116,20 @@ jobs:
         # 创建导出目录
         mkdir -p build/ReleaseUnsigned
         
-        # 生成导出配置
-        cat > build/ReleaseUnsigned/ExportOptions.plist << 'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>method</key>
-            <string>developer-id</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>signingCertificate</key>
-            <string></string>
-            <key>teamID</key>
-            <string></string>
-            <key>destination</key>
-            <string>export</string>
-            <key>stripSwiftSymbols</key>
-            <true/>
-            <key>thinning</key>
-            <string>&lt;none&gt;</string>
-            <key>manageAppVersionAndBuildNumber</key>
-            <false/>
-            <key>compileBitcode</key>
-            <false/>
-        </dict>
-        </plist>
-        EOF
+        # 直接使用兜底方案（从 Archive 复制），因为 exportArchive 在无签名时经常失败
+        echo "⚠️  跳过 exportArchive，直接使用兜底复制方案（更可靠）..."
         
-        # 尝试导出，失败时使用兜底方案
-        if ! xcodebuild -exportArchive \
-          -archivePath "build/DockLambda.xcarchive" \
-          -exportPath "build/ReleaseUnsigned" \
-          -exportOptionsPlist "build/ReleaseUnsigned/ExportOptions.plist"; then
-          
-          echo "⚠️  exportArchive 失败，使用兜底复制方案..."
-          
-          # 直接从 archive 复制
-          ARCHIVE_APP_PATH="build/DockLambda.xcarchive/Products/Applications/$APP_NAME"
-          
-          if [ -d "$ARCHIVE_APP_PATH" ]; then
-            cp -R "$ARCHIVE_APP_PATH" build/ReleaseUnsigned/
-            echo "✅ 使用兜底方案复制成功"
-          else
-            echo "❌ Archive 中未找到应用"
-            exit 1
-          fi
+        # 直接从 archive 复制
+        ARCHIVE_APP_PATH="build/DockLambda.xcarchive/Products/Applications/$APP_NAME"
+        
+        if [ -d "$ARCHIVE_APP_PATH" ]; then
+          cp -R "$ARCHIVE_APP_PATH" build/ReleaseUnsigned/
+          echo "✅ 使用兜底方案复制成功"
+        else
+          echo "❌ Archive 中未找到应用"
+          echo "🔍 查看 Archive 结构："
+          find build/DockLambda.xcarchive -name "*.app" -type d
+          exit 1
         fi
         
         # 验证导出结果
