@@ -1,0 +1,281 @@
+name: Package Unsigned DockLambda
+
+# 触发条件
+on:
+  # Push 到主分支时构建
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'DockLambda/**'
+      - 'DockLambda.xcodeproj/**'
+      - 'scripts/package_unsigned.sh'
+      - '.github/workflows/package-unsigned.yml'
+  
+  # 创建 Release 时构建
+  release:
+    types: [created, published]
+  
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: '是否创建 GitHub Release'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release 标签 (仅在创建 Release 时需要)'
+        required: false
+        default: ''
+        type: string
+
+# 环境变量
+env:
+  SCHEME: DockLambda
+  CONFIGURATION: Release
+  APP_NAME: DockLambda.app
+  ZIP_NAME: DockLambda-macOS.zip
+
+jobs:
+  build-unsigned:
+    name: 构建未签名版本
+    runs-on: macos-latest
+    
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 🍎 设置 Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+    
+    - name: 🔍 显示构建环境信息
+      run: |
+        echo "🖥️  macOS 版本: $(sw_vers -productVersion)"
+        echo "🔨 Xcode 版本: $(xcodebuild -version)"
+        echo "💻 架构: $(uname -m)"
+        echo "📁 工作目录: $(pwd)"
+    
+    - name: 📋 验证项目配置
+      run: |
+        echo "🔍 检查项目文件..."
+        ls -la DockLambda.xcodeproj/
+        
+        echo "🎯 检查 Scheme..."
+        xcodebuild -list -project DockLambda.xcodeproj
+    
+    - name: 🧹 清理构建目录
+      run: |
+        rm -rf build/
+        rm -rf DerivedData/
+    
+    - name: 🔨 构建 Archive
+      run: |
+        echo "🚀 开始构建 Archive..."
+        
+        xcodebuild archive \
+          -scheme "$SCHEME" \
+          -configuration "$CONFIGURATION" \
+          -destination "generic/platform=macOS" \
+          -archivePath "build/DockLambda.xcarchive" \
+          -allowProvisioningUpdates \
+          BUILD_DIR="$(pwd)/build" \
+          PRODUCT_BUNDLE_IDENTIFIER="com.example.DockLambda"
+        
+        echo "✅ Archive 构建完成"
+        ls -la build/DockLambda.xcarchive/
+    
+    - name: 📤 导出应用
+      run: |
+        echo "📤 导出 .app 文件..."
+        
+        # 创建导出目录
+        mkdir -p build/ReleaseUnsigned
+        
+        # 生成导出配置
+        cat > build/ReleaseUnsigned/ExportOptions.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string></string>
+            <key>teamID</key>
+            <string></string>
+            <key>destination</key>
+            <string>export</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>thinning</key>
+            <string>&lt;none&gt;</string>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>compileBitcode</key>
+            <false/>
+        </dict>
+        </plist>
+        EOF
+        
+        # 尝试导出，失败时使用兜底方案
+        if ! xcodebuild -exportArchive \
+          -archivePath "build/DockLambda.xcarchive" \
+          -exportPath "build/ReleaseUnsigned" \
+          -exportOptionsPlist "build/ReleaseUnsigned/ExportOptions.plist"; then
+          
+          echo "⚠️  exportArchive 失败，使用兜底复制方案..."
+          
+          # 直接从 archive 复制
+          ARCHIVE_APP_PATH="build/DockLambda.xcarchive/Products/Applications/$APP_NAME"
+          
+          if [ -d "$ARCHIVE_APP_PATH" ]; then
+            cp -R "$ARCHIVE_APP_PATH" build/ReleaseUnsigned/
+            echo "✅ 使用兜底方案复制成功"
+          else
+            echo "❌ Archive 中未找到应用"
+            exit 1
+          fi
+        fi
+        
+        # 验证导出结果
+        if [ ! -d "build/ReleaseUnsigned/$APP_NAME" ]; then
+          echo "❌ 应用导出失败"
+          exit 1
+        fi
+        
+        echo "✅ 应用导出成功"
+        ls -la build/ReleaseUnsigned/
+    
+    - name: 📦 创建 ZIP 包
+      run: |
+        echo "📦 创建 ZIP 压缩包..."
+        
+        cd build/ReleaseUnsigned
+        
+        # 确认应用存在
+        if [ ! -d "$APP_NAME" ]; then
+          echo "❌ 未找到应用文件"
+          exit 1
+        fi
+        
+        # 创建 ZIP（排除系统文件）
+        zip -r "$ZIP_NAME" "$APP_NAME" -x "*.DS_Store"
+        
+        # 验证 ZIP
+        if [ ! -f "$ZIP_NAME" ]; then
+          echo "❌ ZIP 创建失败"
+          exit 1
+        fi
+        
+        echo "✅ ZIP 创建成功"
+        ls -lah "$ZIP_NAME"
+        
+        # 显示 ZIP 内容
+        echo "📋 ZIP 内容："
+        unzip -l "$ZIP_NAME"
+    
+    - name: 📊 构建信息汇总
+      run: |
+        echo "🎉 构建完成！"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        ZIP_PATH="build/ReleaseUnsigned/$ZIP_NAME"
+        ZIP_SIZE=$(du -h "$ZIP_PATH" | cut -f1)
+        
+        echo "📦 ZIP 文件: $ZIP_PATH"
+        echo "📏 文件大小: $ZIP_SIZE"
+        echo "🏗️  构建配置: $CONFIGURATION"
+        echo "🎯 Bundle ID: com.example.DockLambda"
+        echo "🖥️  目标系统: macOS 13.0+"
+        
+        # 设置输出变量
+        echo "zip_path=$ZIP_PATH" >> $GITHUB_OUTPUT
+        echo "zip_size=$ZIP_SIZE" >> $GITHUB_OUTPUT
+    
+    - name: ⬆️ 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: DockLambda-macOS-unsigned
+        path: build/ReleaseUnsigned/${{ env.ZIP_NAME }}
+        retention-days: 30
+        compression-level: 0  # ZIP 已压缩，跳过额外压缩
+    
+    # 可选：创建 GitHub Release（仅在手动触发且指定时）
+    - name: 🚀 创建 GitHub Release
+      if: ${{ github.event.inputs.create_release == 'true' && github.event.inputs.release_tag != '' }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        TAG="${{ github.event.inputs.release_tag }}"
+        ZIP_PATH="build/ReleaseUnsigned/$ZIP_NAME"
+        
+        echo "🚀 创建 Release: $TAG"
+        
+        # 生成 Release 说明
+        cat > release_notes.md << 'EOF'
+        🐾 DockLambda $TAG
+        
+        **未签名测试版本** - 仅用于测试和小范围分发
+        
+        ## 📥 安装说明
+        
+        1. 下载 `DockLambda-macOS.zip`
+        2. 解压并拖入 `/Applications` 目录
+        3. 首次打开时右键选择"打开"绕过 Gatekeeper
+        
+        ## ⚠️ 重要提示
+        
+        - 此为未签名/未公证版本
+        - 仅适用于测试环境
+        - 正式分发请使用 Developer ID 签名版本
+        
+        ## 🔧 系统要求
+        
+        - macOS 13.0 或更高版本
+        - 支持 Intel 和 Apple Silicon Mac
+        
+        ---
+        
+        构建信息：
+        - 构建时间：$(date)
+        - 提交：${{ github.sha }}
+        - 工作流：${{ github.run_id }}
+        EOF
+        
+        # 创建 Release
+        gh release create "$TAG" "$ZIP_PATH" \
+          --title "DockLambda $TAG" \
+          --notes-file release_notes.md \
+          --draft=false \
+          --prerelease=true
+        
+        echo "✅ Release 创建完成"
+        gh release view "$TAG"
+
+    # 输出工作流结果
+    - name: 📋 工作流总结
+      run: |
+        echo "## 🎯 构建完成" >> $GITHUB_STEP_SUMMARY
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **📦 产物名称**: DockLambda-macOS-unsigned" >> $GITHUB_STEP_SUMMARY
+        echo "- **📏 文件大小**: $(du -h build/ReleaseUnsigned/$ZIP_NAME | cut -f1)" >> $GITHUB_STEP_SUMMARY
+        echo "- **🏗️  构建配置**: $CONFIGURATION" >> $GITHUB_STEP_SUMMARY
+        echo "- **🖥️  目标系统**: macOS 13.0+" >> $GITHUB_STEP_SUMMARY
+        echo "- **⏰ 构建时间**: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📥 下载方式" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "1. 前往 [Actions 页面](../../actions)" >> $GITHUB_STEP_SUMMARY
+        echo "2. 选择此次工作流运行" >> $GITHUB_STEP_SUMMARY
+        echo "3. 下载 **DockLambda-macOS-unsigned** artifact" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ⚠️ 安装提示" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- 此为未签名版本，首次运行需右键选择\"打开\"" >> $GITHUB_STEP_SUMMARY
+        echo "- 仅适用于测试和内部分发" >> $GITHUB_STEP_SUMMARY
+        echo "- 需要 macOS 13.0 或更高版本" >> $GITHUB_STEP_SUMMARY
